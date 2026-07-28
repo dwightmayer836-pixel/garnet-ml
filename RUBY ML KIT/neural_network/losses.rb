@@ -54,15 +54,24 @@ class CrossEntropy < Loss
   def forward(y_pred, y_true)
     probs = y_pred.softmax
     correct_probs = probs.pick_by_row(y_true)
-    losses = correct_probs.map {|p| -Math.log([p,1e-7].max)}
-    losses.sum / y_pred.rows.to_f
+    losses = correct_probs.map { |p| -Math.log([p, 1e-7].max) }
+    losses.sum / y_pred.shape[0].to_f
+
   end
  
   def backward(y_pred, y_true)
     probs = y_pred.softmax
-    one_hot = Matrix.build(y_pred.rows, y_pred.cols) {|r, c| y_true.get(r,0) == c ? 1 : 0}
-    
-    probs.subtract(one_hot).scalar_divide(y_pred.rows)
+    rows, cols = y_pred.shape
+    one_hot = if y_pred.is_a?(Matrix)
+      Matrix.build(rows, cols) { |r, c| y_true.get(r, 0) == c ? 1 : 0 }
+    else
+      Tensor.new(
+        (0...rows).flat_map { |r| (0...cols).map { |c| y_true.get(r, 0) == c ? 1 : 0 } },
+        [rows, cols]
+      )
+    end
+
+    probs.subtract(one_hot).scalar_divide(rows)
   end
 
    

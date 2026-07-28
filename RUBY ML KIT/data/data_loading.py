@@ -5,9 +5,9 @@ from sklearn.datasets import fetch_openml
 from sklearn.model_selection import train_test_split
 import pandas as pd
 
-n_train = 5000
-n_test = 1000
-random_state = 684
+n_train = 250
+n_test = 50
+random_state = 2650
 
 mnist = fetch_openml("mnist_784", version=1, as_frame=False)
 X = mnist.data.astype("float32") / 255.0
@@ -30,12 +30,12 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 train_df = pd.DataFrame(X_train)
 train_df.insert(0, "label", y_train)
-train_df.to_csv("data/mnist_train.csv", index=False)
+train_df.to_csv("data/mnist_train_small.csv", index=False)
 
 test_df = pd.DataFrame(X_test)
 test_df.insert(0, "label", y_test)
-test_df.to_csv("data/mnist_test.csv", index=False)
+test_df.to_csv("data/mnist_test_small.csv", index=False)
 
-print(f"wrote {len(train_df)} training examples to mnist_train.csv")
-print(f"wrote {len(test_df)} test examples to mnist_test.csv")
+print(f"wrote {len(train_df)} training examples to mnist_train_small.csv")
+print(f"wrote {len(test_df)} test examples to mnist_test_small.csv")
 

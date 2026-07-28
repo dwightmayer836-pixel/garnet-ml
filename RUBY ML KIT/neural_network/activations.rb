@@ -38,18 +38,13 @@ module Activations
 
   def softmax
 
-    # softmax operates on a matrix!
-    result = self.copy
-    
-    (0...@rows).each do |r|
-      row = self.get_row(r)
-      max_ = row.max
-      exp = row.map {|x| Math.exp(x-max_)}
-      total = exp.sum
+    row_max = self.reduce_keepdims([1]) {|vals| vals.max}
+    shifted = self.combine(row_max) {|x,m| x-m}
+    exp_vals = shifted.map {|v| Math.exp(v)}
+    row_sum = exp_vals.reduce_keepdims([1]) {|vals| vals.sum}
+    exp_vals.combine(row_sum) {|v,s| v/s}
 
-      result.set_row!(r, exp.map{|x| x/total})
-    end
-    return result
+
   end
 
   def softmax_derivative

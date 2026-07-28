@@ -3,6 +3,8 @@
 
 require_relative "activations"
 require_relative "../core/matrix"
+require_relative "../neural_network/layers"
+require_relative "layers"
 
 class Sigmoid < Layer
   def forward(input)

@@ -20,6 +20,14 @@ class Tensor
     @strides = strides || self.class.compute_strides(shape)
 
   end
+   
+  def copy
+    Tensor.new(@data.dup, @shape.dup)
+  end
+  
+  def pick_by_row(indices)
+    (0...@shape[0]).map { |r| self.get(r, indices.get(r,0))}
+  end
   
   def self.compute_strides(shape)
     strides = Array.new(shape.length, 1)
@@ -70,17 +78,23 @@ class Tensor
   end
 
   def reshape(new_shape)
-    original_size = shape.reduce(1) {|acc,dim| acc*dim}
+    original_size = @shape.reduce(1) {|acc,dim| acc*dim}
     new_size = new_shape.reduce(1) {|acc,dim| acc*dim}
 
     unless original_size == new_size
       raise ArgumentError, "bad sizes in Tensor reshape"
     end
-    return Tensor.new(@data, new_shape)
+    source_data = contiguous? ? @data : materialize.data
 
+
+    return Tensor.new(source_data, new_shape)
+    
   end
 
-  def transpose(axes)
+  def transpose(axes=nil)
+
+    axes ||= (0...@ndims).to_a.reverse
+
     unless axes.sort == (0...@ndims).to_a
       raise ArgumentError, "axes #{axes.inspect} is not a valid permutation of 0..#{@ndims - 1}"
     end
@@ -123,6 +137,11 @@ class Tensor
 
   def combine(other)
     # pass...
+    # current, combine assumes the other input is always a tensor. Not always true. 
+    other = other.to_tensor if other.is_a?(Matrix)
+
+    other = wrap_as_tensor(other) unless other.is_a?(Tensor)
+
     result_shape = self.class.broadcast_shape(@shape, other.shape)
     padded_self_shape = Tensor.pad_shape(@shape, result_shape.length)
     padded_other_shape = Tensor.pad_shape(other.shape, result_shape.length)
@@ -173,7 +192,9 @@ class Tensor
   end
 
   def map
-    new_data = @data.map {|value| yield(value)}
+    source = contiguous? ? self : materialize
+    new_data = source.data.map { |val| yield(val) }
+
     return Tensor.new(new_data, @shape)
   end
 
@@ -193,6 +214,24 @@ class Tensor
     reduce(axes) {|values| values.min}
   end
 
+  def add(other)
+    self.combine(other) { |a, b| a + b }
+  end
+
+  def subtract(other)
+    self.combine(other) {|a,b| a-b}
+  end
+
+  def scalar_multiply(scalar)
+    self.map {|val| val * scalar}
+  end
+
+  def scalar_divide(scalar)
+    raise ZeroDivisionError unless scalar =! 0
+
+    self.map{|val| val / scalar}
+  end
+
   def reduce_keepdims(axes)
     output_shape = @shape.each_with_index.map {|dim,i| axes.include?(i) ? 1:dim}
     buckets = Hash.new { |h,k| h[k] = [] }
@@ -202,7 +241,7 @@ class Tensor
       buckets[key] << self.get(*indices)
     end
 
-    new_data = Array.new(output_shape.reduce(1), {|a,d| a*d})
+    new_data = Array.new(output_shape.reduce(1) {|a,d| a*d})
 
     result = Tensor.new(Array.new(new_data.length, 0), output_shape)
     buckets.each {|key, values| result.set(*key, yield(values))}
@@ -210,13 +249,184 @@ class Tensor
 
   end
 
-  
+  def hadamard_multiply(other)
+    self.combine(other) {|a, b| a * b}
+  end 
 
 
+  def scalar_divide(scalar)
+    raise ZeroDivisionError if scalar==0.0
+    self.map {|val| val/scalar}
+  end
+
+  def wrap_as_tensor(other)
+    if other.is_a?(Numeric)
+      Tensor.new([other], [1])
+    elsif other.is_a?(Array)
+      Tensor.new(other, [other.length])
+    else
+      raise ArgumentError, "Cannot combine tensor with #{other.class}"
+    end
+
+  end
+
+  def dot_product(other)
+    other = other.to_tensor unless other.is_a?(Tensor)
+
+
+
+    rows, inner = @shape
+    cols = other.shape[1]
+
+    a = self.reshape([rows, inner, 1])
+    b = other.reshape([1, inner, cols])
+
+    product = a.combine(b) {|x,y| x*y}
+    product.reduce([1]) {|vals| vals.sum}    
+
+  end
+
+
+  def pad(axis, before, after, value:0)
+    new_shape = @shape.dup
+    new_shape[axis] += (before + after)
+
+    result = Tensor.new(Array.new(new_shape.reduce(1,:*), value), new_shape)
+    # incomplete...
+
+    self.class.each_index(@shape) do |indices, flat_idx|
+      target_indices = indices.dup
+      target_indices[axis] += before
+      result.set(*target_indices, self.get(*indices))
+    end
+
+    result  
+
+  end
+
+  def unpad(axis, before, after)
+    new_size = @shape[axis] - before - after
+    ranges = Array.new(@ndims)
+    ranges[axis] = (before...(before + new_size))
+    slice(*ranges)
+  end
+
+
+
+  def slice(*ranges)
+    new_shape = ranges.map {|r| r.is_a?(Range) ? r.size : @shape[ranges.index(r)]}
+    resolved = ranges.each_with_index.map {|r, d| r || (0...@shape[d])}
+    out_shape = resolved.map(&:size)
+    new_data = Array.new(out_shape.reduce(1, :*))
+    
+    self.class.each_index(out_shape) do |out_indices, flat_idx|
+      source_indices = out_indices.each_with_index.map {|idx, d| resolved[d].first + idx}
+      new_data[flat_idx] = self.get(*source_indices)
+    end
+    return Tensor.new(new_data, out_shape)
+
+  end
+
+  def im2col(kernel_h, kernel_w, stride)
+    # int, int, int(s)
+
+
+    batch, channels, h, w = @shape
+    out_h = (h-kernel_h) / stride + 1
+    out_w = (w-kernel_w) / stride + 1
+    num_windows = batch * out_h * out_w
+    window_size = channels * kernel_h * kernel_w
+    new_data = Array.new(num_windows * window_size)
+
+    row = 0 
+    (0...batch).each do |b|
+      (0...out_h).each do |oh|
+        (0...out_w).each do |ow|
+          col = 0
+          (0...channels).each do |c|
+            (0...kernel_h).each do |kh|
+              (0...kernel_w).each do |kw|
+		val = self.get(b, c, (oh * stride + kh), (ow * stride + kw))
+		new_data[row * window_size + col] = val
+		col += 1
+	      end
+	    end
+	  end
+	  row += 1
+        end
+      end
+    end
+
+    return Tensor.new(new_data, [num_windows, window_size])
+
+  end
+ 
+  def self.col2im(cols, batch, channels, h, w, kernel_h, kernel_w, stride)
+
+    out_h = (h-kernel_h) / stride+1
+    out_w = (w-kernel_w) / stride+1
+    result = Tensor.new(Array.new(batch*channels*h*w, 0.0), [batch, channels, h, w])
+    row = 0
+
+    (0...batch).each do |b|
+      (0...out_h).each do |oh|
+        (0...out_w).each do |ow|
+          col = 0
+          (0...channels).each do |c|
+            (0...kernel_h).each do |kh|
+              (0...kernel_w).each do |kw|
+                r = oh*stride+kh
+                cc = ow*stride+kw
+                current = result.get(b, c, r, cc)
+                result.set(b,c,r,cc,current+cols.get(row,col))
+                col += 1
+              end
+            end
+          end
+          row +=1
+        end
+      end
+    end
+    result
+  end
+
+  def equals?(other)
+    
+    # There is a case where a 2D matrix of a certain IS a tensor. 
+    return false unless other.is_a?(Tensor)
+    return false unless @shape == other.shape
+
+    self.class.each_index(@shape) do |indices, _flat_idx|
+      return false if self.get(*indices) != other.get(*indices)
+    end
+
+    return true
+
+
+  end
+
+  def self.init_he(rows, cols)
+    limit = Math.sqrt(6.0 / rows)
+    Tensor.new(Array.new(rows * cols) { rand(-limit...limit) }, [rows, cols])
+  end
+
+  def self.init_xavier(rows, cols)
+    limit = Math.sqrt(6.0 / (rows + cols))
+    Tensor.new(Array.new(rows * cols) { rand(-limit...limit) }, [rows, cols])
+  end
+
+  def self.init_rand(rows, cols)
+    Tensor.new(Array.new(rows * cols) { rand(-1.0..1.0) }, [rows, cols])
+  end
+
+  def self.zeros(shape)
+    Tensor.new(Array.new(shape.reduce(1, :*), 0.0), shape)
+  end
+
+  def subtract(other)
+    self.combine(other) {|a, b| a-b}
+  end
 end
-
-
-
 
 
 

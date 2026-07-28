@@ -15,65 +15,8 @@ require "csv"
 
 
 
+
 =begin
-csv_path = File.join(File.dirname(__FILE__), "..", "data", "mnist.csv")
-rows = CSV.read(csv_path, headers: true)
-
-
-#rows = CSV.read("../data/mnist.csv", headers: true)
-images = []
-labels = []
-puts rows.is_a?(Array)
-
-
-rows.each do |row|
-  labels << row[0].to_i
-
-  pixels = row.fields[1..].map(&:to_f)
-  images << Matrix.new([pixels])
-end
-
-network = NeuralNetwork.new([
-    Dense.new(784, 256),
-    ReLU.new,
-
-    Dense.new(256, 128),
-    ReLU.new,
-
-    Dense.new(128, 10)
-]
-)
-
-#x_train = Matrix.new(images)
-#y_train = Matrix.new([labels])
-
-#puts y_train
-
-total_loss = 0.0
-
-images.each_with_index do |image, i|
-  label = Matrix.new([[labels[i]]])   # if CrossEntropy expects a Matrix
-
-  total_loss += network.train_step(image, label, 0.01)
-end
-
-#puts total_loss / images.length
-
-
-
-
-images.each_with_index do |x, i|
-    y = Matrix.one_hot(labels[i], 10)
-    
-    
-    logits = network.train_step(x, i, 0.01)
-    loss = criterion.forward(logits, y)
-
-    gradient = criterion.backward
-    network.backward(gradient)
-end
-
-=end
 
 csv_path_train = File.join(File.dirname(__FILE__), "..", "data", "mnist_train.csv")
 csv_path_test = File.join(File.dirname(__FILE__), "..", "data", "mnist_test.csv")
@@ -99,7 +42,9 @@ loss:CrossEntropy.new)
 train_source = CSVDataSource.new(csv_path_train, 128)
 test_source  = CSVDataSource.new(csv_path_test, 128)
 
-network.train_alt(train_source, epochs: 5, learning_rate: 0.015, verbose: true)
+=end
+
+#network.train_alt(train_source, epochs: 10, learning_rate: 0.03, verbose: true)
 def evaluate_accuracy(network, data_source)
   correct = 0
   total = 0
@@ -120,9 +65,30 @@ def evaluate_accuracy(network, data_source)
   correct.to_f / total
 end
 
+csv_path_train = File.join(File.dirname(__FILE__), "..", "data", "mnist_train_small.csv")
+csv_path_test = File.join(File.dirname(__FILE__), "..", "data", "mnist_test_small.csv")
+
+train_source = CSVDataSource.new(csv_path_train, 32, as_image:true)
+test_source  = CSVDataSource.new(csv_path_test, 32, as_image:true)
 
 
 
+network_alt = NeuralNetwork.new([
+
+Conv2D.new(1, 8, kernel_size: 3, padding: 1),
+  ReLU.new,
+  MaxPool2D.new(2),
+  Conv2D.new(8, 16, kernel_size: 3, padding: 1),
+  ReLU.new,
+  MaxPool2D.new(2),
+  Flatten.new,                 # bridges Tensor -> Matrix here
+  Dense.new(16 * 7 * 7, 64),   # 28 -> 14 -> 7 after two 2x2 pools
+  ReLU.new,
+  Dense.new(64, 32),
+  ReLU.new,
+  Dense.new(32, 10)])
+
+network_alt.train_alt(train_source, epochs: 8, learning_rate: 0.01, verbose: true)
 accuracy = evaluate_accuracy(network, test_source)
 puts "test accuracy: #{(accuracy * 100).round(2)}%"
 

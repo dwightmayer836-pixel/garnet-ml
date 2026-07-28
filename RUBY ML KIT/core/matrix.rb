@@ -5,6 +5,7 @@ require_relative "linear_algebra"
 require_relative "statistics"
 require_relative "../neural_network/activations"
 
+require_relative "tensor"
 
 class Matrix
 
@@ -449,7 +450,9 @@ class Matrix
     Matrix.new(grid)        
   end
 
-  
+  def to_tensor
+    Tensor.new(self.flatten, [@rows, @cols])
+  end  
 
 
 

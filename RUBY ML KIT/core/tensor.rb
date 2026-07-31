@@ -2,10 +2,13 @@
 # Dwight Mayer, July 15th, 2026
 
 require_relative "../neural_network/activations"
+require_relative "rusty_tensor"
+
 
 class Tensor
   attr_reader :shape, :strides, :data, :ndims
   
+  include RustOperations
   include Activations
 
   def initialize(data, shape, strides:nil)
@@ -50,7 +53,7 @@ class Tensor
   end 
 
   def flat_index(indices)
-    self.validate_indices(indices)
+    # self.validate_indices(indices)
     indices.each_with_index.sum {|idx, dim| idx * @strides[dim]}
   end
 
@@ -270,10 +273,8 @@ class Tensor
 
   end
 
-  def dot_product(other)
+  def dot_product_old(other)
     other = other.to_tensor unless other.is_a?(Tensor)
-
-
 
     rows, inner = @shape
     cols = other.shape[1]
@@ -327,9 +328,8 @@ class Tensor
 
   end
 
-  def im2col(kernel_h, kernel_w, stride)
+  def im2col_old(kernel_h, kernel_w, stride)
     # int, int, int(s)
-
 
     batch, channels, h, w = @shape
     out_h = (h-kernel_h) / stride + 1
@@ -360,7 +360,8 @@ class Tensor
     return Tensor.new(new_data, [num_windows, window_size])
 
   end
- 
+  
+  # This is old and deprecated... 
   def self.col2im(cols, batch, channels, h, w, kernel_h, kernel_w, stride)
 
     out_h = (h-kernel_h) / stride+1
@@ -426,6 +427,7 @@ class Tensor
   def subtract(other)
     self.combine(other) {|a, b| a-b}
   end
+
 end
 
 

@@ -137,7 +137,6 @@ class Matrix
     Matrix.build(@cols, @rows) {|row_idx, col_idx| self.get(col_idx, row_idx)}
   end
 
-
   def dot_product(other)
     
     if other.is_a?(Array)

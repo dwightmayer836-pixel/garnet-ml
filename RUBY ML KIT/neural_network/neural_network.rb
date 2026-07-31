@@ -83,7 +83,9 @@ class NeuralNetwork
       data_source.each_batch do |batch_input, batch_target|
         total_loss += train_step(batch_input, batch_target, learning_rate)
         num_batches += 1
-        puts "batch #{num_batches} processed"
+	if num_batches % 3 ==0
+          puts "batch #{num_batches} processed"
+        end  
       end
 
       avg_loss = total_loss / num_batches

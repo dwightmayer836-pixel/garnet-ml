@@ -120,6 +120,29 @@ pub fn col2im(
 }
 
 
+pub fn elementwise_add(a: Vec<f64>, b: Vec<f64>) -> Vec<f64> {
+    a.iter().zip(b.iter()).map(|(x, y)| x + y).collect()
+}
+
+pub fn elementwise_multiply(a: Vec<f64>, b: Vec<f64>) -> Vec<f64> {
+    a.iter().zip(b.iter()).map(|(x, y)| x * y).collect()
+}
+
+pub fn scalar_multiply(data: Vec<f64>, scalar:f64) -> Vec<f64>{
+    data.iter().map(|v| v * scalar).collect()
+}
+
+pub fn scalar_divide(data: Vec<f64>, scalar:f64) -> Vec<f64> {
+    data.iter().map(|v| v / scalar).collect()
+}
+
+pub fn sigmoid(data: Vec<f64>) -> Vec<f64> {
+    data.iter().map(|&v| 1.0 / (1.0 + (-v).exp())).collect()
+}
+
+pub fn relu(data: Vec<f64>) -> Vec<f64> {
+    data.iter().map(|&v| if v > 0.0 { v } else { 0.0 }).collect()
+}
 
 
 #[magnus::init]
@@ -141,6 +164,35 @@ fn init() -> Result<(), Error> {
 	function!(col2im, 8)
     )?;
 
+    module.define_singleton_method(
+	"elementwise_add",
+	function!(elementwise_add, 2)
+    )?;
+
+    module.define_singleton_method(
+	"scalar_multiply",
+	function!(scalar_multiply, 2)
+    )?;
+
+    module.define_singleton_method(
+	"scalar_divide",
+	function!(scalar_divide, 2)
+    )?;
+
+    module.define_singleton_method(
+	"elementwise_multiply",
+	function!(elementwise_multiply, 2)
+    )?;
+
+    module.define_singleton_method(
+	"sigmoid",
+	function!(sigmoid, 1)
+    )?;
+
+    module.define_singleton_method(
+	"relu",
+	function!(relu, 1)
+    )?;
 
     Ok(())
 }

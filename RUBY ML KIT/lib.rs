@@ -140,9 +140,53 @@ pub fn sigmoid(data: Vec<f64>) -> Vec<f64> {
     data.iter().map(|&v| 1.0 / (1.0 + (-v).exp())).collect()
 }
 
+pub fn sigmoid_derivative(data: Vec<f64>) -> Vec<f64> {
+    data.into_iter()
+	.map(|v|  {
+	let s = 1.0 / (1.0 + (-v).exp());
+	s * (1.0 - s)
+	})
+	.collect()
+}
+
 pub fn relu(data: Vec<f64>) -> Vec<f64> {
     data.iter().map(|&v| if v > 0.0 { v } else { 0.0 }).collect()
 }
+
+pub fn relu_derivative(data: Vec<f64>) -> Vec<f64> {
+    data.into_iter()
+	.map(|v| if v > 0.0 { 1.0 } else { 0.0 })
+	.collect()
+		
+
+}
+
+pub fn tanh(data: Vec<f64>) -> Vec<f64> {
+    data.iter().map(|&v| v.tanh()).collect()
+}
+
+pub fn tanh_derivative(data: Vec<f64>) -> Vec <f64> {
+    data.into_iter().map ( |v| { 
+	let t = v.tanh();
+	1.0 - t * t
+	})
+	.collect()
+}
+
+pub fn elu(data:Vec<f64>, alpha:f64) -> Vec<f64> {
+    // logic
+    data.into_iter()
+	.map ( |v| if v > 0.0 { v } else {alpha * (v.exp() - 1.0)})
+	.collect()
+}
+
+pub fn elu_derivative(data:Vec<f64>, alpha:f64) -> Vec<f64> {
+    // logic
+    data.into_iter()
+	.map (|v| if v > 0.0 { 1.0 } else {alpha * v.exp()})
+	.collect() 
+}
+
 
 
 #[magnus::init]
@@ -192,6 +236,31 @@ fn init() -> Result<(), Error> {
     module.define_singleton_method(
 	"relu",
 	function!(relu, 1)
+    )?;
+    
+    module.define_singleton_method(
+	"relu_derivative", 
+	function!(relu_derivative, 1)
+    )?;
+
+    module.define_singleton_method(
+	"sigmoid_derivative",
+	function!(sigmoid_derivative, 1)
+    )?;
+
+    module.define_singleton_method(
+	"tanh_derivative",
+	function!(tanh_derivative, 1)
+    )?;
+
+    module.define_singleton_method(
+	"elu",
+	function!(elu, 2)
+    )?;
+
+    module.define_singleton_method(
+	"elu_derivative",
+	function!(elu_derivative, 2)
     )?;
 
     Ok(())

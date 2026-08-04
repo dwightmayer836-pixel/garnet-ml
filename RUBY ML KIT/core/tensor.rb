@@ -54,6 +54,10 @@ class Tensor
 
   def flat_index(indices)
     # self.validate_indices(indices)
+    #    puts indices
+    #puts @shape
+    #puts @strides    
+
     indices.each_with_index.sum {|idx, dim| idx * @strides[dim]}
   end
 
@@ -225,11 +229,11 @@ class Tensor
     self.combine(other) {|a,b| a-b}
   end
 
-  def scalar_multiply(scalar)
+  def scalar_multiply_old(scalar)
     self.map {|val| val * scalar}
   end
 
-  def scalar_divide(scalar)
+  def scalar_divide_old(scalar)
     raise ZeroDivisionError unless scalar =! 0
 
     self.map{|val| val / scalar}
@@ -252,15 +256,10 @@ class Tensor
 
   end
 
-  def hadamard_multiply(other)
+  def hadamard_multiply_old(other)
     self.combine(other) {|a, b| a * b}
   end 
 
-
-  def scalar_divide(scalar)
-    raise ZeroDivisionError if scalar==0.0
-    self.map {|val| val/scalar}
-  end
 
   def wrap_as_tensor(other)
     if other.is_a?(Numeric)
@@ -272,21 +271,6 @@ class Tensor
     end
 
   end
-
-  def dot_product_old(other)
-    other = other.to_tensor unless other.is_a?(Tensor)
-
-    rows, inner = @shape
-    cols = other.shape[1]
-
-    a = self.reshape([rows, inner, 1])
-    b = other.reshape([1, inner, cols])
-
-    product = a.combine(b) {|x,y| x*y}
-    product.reduce([1]) {|vals| vals.sum}    
-
-  end
-
 
   def pad(axis, before, after, value:0)
     new_shape = @shape.dup
@@ -328,68 +312,7 @@ class Tensor
 
   end
 
-  def im2col_old(kernel_h, kernel_w, stride)
-    # int, int, int(s)
-
-    batch, channels, h, w = @shape
-    out_h = (h-kernel_h) / stride + 1
-    out_w = (w-kernel_w) / stride + 1
-    num_windows = batch * out_h * out_w
-    window_size = channels * kernel_h * kernel_w
-    new_data = Array.new(num_windows * window_size)
-
-    row = 0 
-    (0...batch).each do |b|
-      (0...out_h).each do |oh|
-        (0...out_w).each do |ow|
-          col = 0
-          (0...channels).each do |c|
-            (0...kernel_h).each do |kh|
-              (0...kernel_w).each do |kw|
-		val = self.get(b, c, (oh * stride + kh), (ow * stride + kw))
-		new_data[row * window_size + col] = val
-		col += 1
-	      end
-	    end
-	  end
-	  row += 1
-        end
-      end
-    end
-
-    return Tensor.new(new_data, [num_windows, window_size])
-
-  end
-  
-  # This is old and deprecated... 
-  def self.col2im(cols, batch, channels, h, w, kernel_h, kernel_w, stride)
-
-    out_h = (h-kernel_h) / stride+1
-    out_w = (w-kernel_w) / stride+1
-    result = Tensor.new(Array.new(batch*channels*h*w, 0.0), [batch, channels, h, w])
-    row = 0
-
-    (0...batch).each do |b|
-      (0...out_h).each do |oh|
-        (0...out_w).each do |ow|
-          col = 0
-          (0...channels).each do |c|
-            (0...kernel_h).each do |kh|
-              (0...kernel_w).each do |kw|
-                r = oh*stride+kh
-                cc = ow*stride+kw
-                current = result.get(b, c, r, cc)
-                result.set(b,c,r,cc,current+cols.get(row,col))
-                col += 1
-              end
-            end
-          end
-          row +=1
-        end
-      end
-    end
-    result
-  end
+   
 
   def equals?(other)
     
@@ -426,6 +349,21 @@ class Tensor
 
   def subtract(other)
     self.combine(other) {|a, b| a-b}
+  end
+
+     
+  def broadcast_to(target_shape)
+    return contiguous? ? self : materialize if @shape == target_shape
+
+    padded_self_shape = Tensor.pad_shape(@shape, target_shape.length)
+    new_data = Array.new(target_shape.reduce(1, :*))
+
+    self.class.each_index(target_shape) do |out_indices, flat_idx|
+      source_indices = Tensor.map_broadcast_indices(out_indices, padded_self_shape)
+      new_data[flat_idx] = self.get(*Tensor.trim_leading(source_indices, @ndims))
+    end
+
+    Tensor.new(new_data, target_shape)
   end
 
 end

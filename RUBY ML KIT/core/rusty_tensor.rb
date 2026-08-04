@@ -100,7 +100,7 @@ module RustOperations
 
   def sigmoid_derivative_rust
     source = contiguous? ? self : materialize
-    result = RustyTensor.tanh_derivative(source.data)
+    result = RustyTensor.sigmoid_derivative(source.data)
     Tensor.new(result, source.shape)
 
   end
@@ -129,10 +129,6 @@ module RustOperations
     result = RustyTensor.elu_derivative(source.data,alpha)
     Tensor.new(result, source.shape)
   end
-
-
-
-
 
 
 end

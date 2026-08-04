@@ -13,48 +13,36 @@ class MaxPool2D < Layer
     @stride = stride || pool_size
   end
 
+  # New Rusty implementation
   def forward(input)
     @input_shape = input.shape
-    batch, channels, h, w = input.shape
+    source = input.contiguous? ? input : input.materialize
+    batch,channels,h,w = source.shape
     out_h = (h-@pool_h) / @stride + 1
     out_w = (w-@pool_w) / @stride + 1
-    result = Tensor.new(Array.new(batch*channels*out_h*out_w), [batch, channels, out_h, out_w])
-    @max_locations = {}
 
-    (0...batch).each do |b|
-      (0...channels).each do |c|
-        (0...out_h).each do |oh|
-          (0...out_w).each do |ow|
-            best_val = -Float::INFINITY
-            best_pos = nil
-            (0...@pool_h).each do |ph|
-              (0...@pool_w).each do |pw|
-                r, col = oh*@stride+ph, ow*@stride+pw
-                val = input.get(b, c, r, col)
-                if val > best_val
-                  best_val = val
-                  best_pos = [r, col]
-                end
-              end
-            end
-            result.set(b, c, oh, ow, best_val)
-            @max_locations[[b,c,oh,ow]] = best_pos
-          end
-        end
-      end
-    end
-    return result
+    result_data, winners = RustyTensor.max_pool2d_forward(
+                                                source.data,
+                                                source.shape,
+                                                @pool_h,
+                                                @pool_w,
+                                                @stride)
+
+
+    @winners = winners
+    Tensor.new(result_data, [batch,channels,out_h,out_w])
+
   end
 
   def backward(output_gradient, learning_rate)
-    input_gradient = Tensor.new(Array.new(@input_shape.reduce(1, :*), 0.0), @input_shape)
-    @max_locations.each do |(b, c, oh, ow), (r, col)|
-      current = input_gradient.get(b, c, r, col)
-      grad = output_gradient.get(b, c, oh, ow)
-      input_gradient.set(b, c, r, col, (current+grad))
-    end
-    return input_gradient
+    source = output_gradient.contiguous? ? output_gradient : output_gradient.materialize    
+    input_length = @input_shape.reduce(1, :*)
+    result = RustyTensor.max_pool2d_backward(source.data, @winners, input_length)
+    Tensor.new(result, @input_shape)
+
   end
+
+
 end
 
 class Conv2D < Layer

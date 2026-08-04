@@ -6,13 +6,14 @@ require_relative "../core/matrix"
 require_relative "../neural_network/layers"
 require_relative "layers"
 
+
 class Sigmoid < Layer
   def forward(input)
     @output = input.sigmoid
     return @output
   end
   def backward(output_gradient, learning_rate=nil)
-    derivative = @output.sigmoid_derivative
+    derivative = @output.sigmoid_derivative_rust
     output_gradient.hadamard_multiply(derivative)
   end
 end
@@ -20,11 +21,13 @@ end
 class ReLU < Layer
   def forward(x)
     @input = x
-    @output = x.relu
-    return x.relu
+    # @output = x.relu
+    @output = x.relu_rust
+    return @output
   end
+
   def backward(output_gradient, learning_rate=nil)
-    output_gradient.hadamard_multiply(@input.relu_derivative)
+    output_gradient.hadamard_multiply(@input.relu_derivative_rust)
   end
 end
 
@@ -32,10 +35,10 @@ class Tanh < Layer
   def forward(x)
     @input = x
     @output = x.tanh
-    return x.tanh
+    return @output
   end
   def backward(output_gradient, learning_rate=nil)
-    output_gradient.hadamard_multiply(@input.tanh_derivative)
+    output_gradient.hadamard_multiply(@input.tanh_derivative_rust)
   end
 end
 

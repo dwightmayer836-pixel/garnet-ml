@@ -22,7 +22,6 @@ class NeuralNetwork
     @layers.flat_map {|layer| layer.parameters} 
   end  
 
-
   def predict(input)
     eval!
     forward(input)
@@ -83,7 +82,7 @@ class NeuralNetwork
       data_source.each_batch do |batch_input, batch_target|
         total_loss += train_step(batch_input, batch_target, learning_rate)
         num_batches += 1
-	if num_batches % 3 ==0
+	if num_batches % 8 ==0
           puts "batch #{num_batches} processed"
         end  
       end
@@ -94,5 +93,31 @@ class NeuralNetwork
     end
     nil
   end
+
+  def evaluate_accuracy(data_source)
+    correct = 0
+    total = 0
+
+    data_source.each_batch do |batch_input, batch_target|
+      predictions = predict(batch_input)   # raw logits, shape [batch, 10]
+      batch_size, num_classes = predictions.shape
+
+      (0...batch_size).each do |r|
+        row_values = (0...num_classes).map { |c| predictions.get(r, c) }
+        predicted_class = row_values.each_with_index.max.last   # argmax
+        actual_class = batch_target.get(r, 0)
+
+        correct += 1 if predicted_class == actual_class
+        total += 1
+      end
+    end
+    correct.to_f / total
+end
+
+
+
+
+
+
 
 end

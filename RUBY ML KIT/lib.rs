@@ -6,6 +6,7 @@
 // dot product
 // im2col
 // col2im
+
 use magnus::{
     function,
     prelude::*,
@@ -187,6 +188,72 @@ pub fn elu_derivative(data:Vec<f64>, alpha:f64) -> Vec<f64> {
 	.collect() 
 }
 
+pub fn max_pool2d_forward(
+    data:Vec<f64>, 
+    shape:Vec<i64>, 
+    pool_h:i64,
+    pool_w:i64, 
+    stride:i64
+) -> (Vec<f64>, Vec<i64>) {
+    // logic...
+    let batch = shape[0] as usize;
+    let channels = shape[1] as usize;
+    let h = shape[2] as usize;
+    let w = shape[3] as usize;
+
+    let pool_h = pool_h as usize;
+    let pool_w = pool_w as usize;
+    let stride = stride as usize;
+
+    let out_h = (h - pool_h) / stride + 1;
+    let out_w = (w - pool_w) / stride + 1;
+
+    let mut result = vec![0.0; batch*channels*out_h*out_w]; 
+    let mut winners = vec![0i64; batch*channels*out_h*out_w];
+
+    let mut out_idx = 0;
+    for b in 0..batch {
+	for c in 0..channels {
+	    for oh in 0..out_h {
+		for ow in 0..out_w {
+		    let mut best_val = f64::NEG_INFINITY;
+		    let mut best_idx = 0usize;
+
+		    for ph in 0..pool_h {
+			for pw in 0..pool_w {
+			    let r = oh*stride+ph;
+			    let col = ow*stride+pw;
+			    let idx = b*channels*h*w+c*h*w+r*w+col;
+
+			    if data[idx] > best_val {
+				best_val = data[idx];
+				best_idx = idx;
+		    }
+		}
+	    }
+	    result[out_idx] = best_val;
+	    winners[out_idx] =  best_idx as i64;
+	    out_idx += 1;
+	    }
+        }
+    }
+}
+	(result, winners)	
+}
+
+pub fn max_pool2d_backward(output_gradient:Vec<f64>,winners:Vec<i64>,input_size:i64) -> Vec<f64> {
+    let input_size = input_size as usize;
+    let mut input_gradient = vec![0.0; input_size];
+
+    for (grad, &winner_idx) in output_gradient.iter().zip(winners.iter()) {
+	input_gradient[winner_idx as usize] += grad;
+    }
+    input_gradient
+}
+
+
+
+
 
 
 #[magnus::init]
@@ -263,7 +330,18 @@ fn init() -> Result<(), Error> {
 	function!(elu_derivative, 2)
     )?;
 
+    module.define_singleton_method(
+	"max_pool2d_forward",
+	function!(max_pool2d_forward, 5)
+    )?;
+
+    module.define_singleton_method(
+	"max_pool2d_backward", 
+	function!(max_pool2d_backward, 3)
+    )?;
+
     Ok(())
+
 }
 
 

@@ -1,3 +1,5 @@
-# Garnet-ML---Deep-learning-in-Ruby
-My implementation of MNIST digit recognition. 
-Ruby frontend / API, Rust backend for some tensor operations.
+# Garnet-ML --- DEEP LEARNING FRAMEWORK
+
+- Ruby frontend over growing Rust backend
+- Convolutional Neural Networks (CNNs)
+- Multi-Layer Perceptrons (MLPs)
